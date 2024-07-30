@@ -4,13 +4,14 @@ pragma solidity 0.8.24;
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
-abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata {
+abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, ReentrancyGuard {
     using Strings for uint256;
 
     /*============================================================
@@ -106,7 +107,7 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata {
         emit ApprovalForAll(owner, operator, approved);
     }
 
-    function transferFrom(address from, address to, uint256 tokenId) public virtual {
+    function transferFrom(address from, address to, uint256 tokenId) public virtual nonReentrant {
         if (from == ownerOf(tokenId)) {
             revert WrongFrom();
         }
@@ -165,7 +166,7 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata {
     /*============================================================
                             BULK TRANSFER LOGIC
     ============================================================*/
-    function safeBulkTransferFrom(address from, address to, uint256 fromId, uint256 toId) public virtual {
+    function safeBulkTransferFrom(address from, address to, uint256 fromId, uint256 toId) public virtual nonReentrant {
         if (fromId >= toId) {
             revert InvalidTokenId();
         }

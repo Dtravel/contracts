@@ -18,6 +18,7 @@ interface INiteToken {
     function transferWithPermit(address _to, uint256 _tokenId, uint256 _deadline, bytes calldata _signature) external;
 
     event SetWhitelist(address indexed addr, bool isWhitelist);
+    event WithdrawGasToken(address indexed to, uint256 amount);
 
     error OnlyHost();
     error TransferWhilePaused();
