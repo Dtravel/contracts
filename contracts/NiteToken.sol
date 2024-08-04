@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
@@ -26,9 +26,6 @@ contract NiteToken is INiteToken, ERC721Booking, Pausable, EIP712 {
     // the nonces mapping is given for replay protection
     mapping(address => uint256) public sigNonces;
 
-    // transfer hook checks are skipped for whitelist
-    mapping(address => bool) public whitelist;
-
     modifier onlyHost() {
         if (_msgSender() != HOST) {
             revert OnlyHost();
@@ -38,18 +35,16 @@ contract NiteToken is INiteToken, ERC721Booking, Pausable, EIP712 {
 
     constructor(
         address _host,
-        address _whitelist,
+        address _operator,
         address _factory,
         string memory _name,
         string memory _symbol,
         string memory _uri
     ) ERC721Booking(_host, _name, _symbol) EIP712("DtravelNT", "1") {
         // add host to the whitelist in the default
-        whitelist[HOST] = true;
 
-        if (_whitelist != address(0)) {
-            whitelist[_whitelist] = true;
-            _setApprovalForAll(_host, _whitelist, true);
+        if (_operator != address(0)) {
+            _setApprovalForAll(_host, _operator, true);
         }
         FACTORY = IFactory(_factory);
         baseTokenURI = _uri;
@@ -66,10 +61,10 @@ contract NiteToken is INiteToken, ERC721Booking, Pausable, EIP712 {
     ) internal override(ERC721Booking) {
         address msgSender = _msgSender();
 
-        bool isHostOrWhitelisted = msgSender == HOST || whitelist[msgSender];
-        _collectGasFee(fromId, lastId, isHostOrWhitelisted);
+        bool isHostOrApproved = msgSender == HOST || isApprovedForAll[HOST][msgSender];
+        _collectGasFee(fromId, lastId, isHostOrApproved);
 
-        if (isHostOrWhitelisted) {
+        if (isHostOrApproved) {
             return;
         }
 
@@ -94,17 +89,6 @@ contract NiteToken is INiteToken, ERC721Booking, Pausable, EIP712 {
     /*============================================================
                             HOST SETIING
     ============================================================*/
-
-    /**
-     * @notice Set up a whitelist
-     * @dev Caller must be HOST
-     * @param _addr The given address
-     * @param _isWhitelist The whitelist status
-     */
-    function setWhitelist(address _addr, bool _isWhitelist) external onlyHost {
-        whitelist[_addr] = _isWhitelist;
-        emit SetWhitelist(_addr, _isWhitelist);
-    }
 
     /**
      * @notice Set token name

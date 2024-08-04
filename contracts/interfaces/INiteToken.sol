@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 interface INiteToken {
-    function setWhitelist(address _addr, bool _isWhitelist) external;
     function setName(string calldata _name) external;
     function setBaseURI(string calldata _uri) external;
     function pause() external;

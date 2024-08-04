@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -25,13 +25,14 @@ contract Factory is IFactory, Ownable {
     // the operator address that could be approved by host to transfer Nite tokens
     address public operator;
 
-    constructor(address _operator, address _treasury, address _tokenAddress) Ownable(msg.sender) {
+    constructor(address _operator, address _treasury, address _tokenAddress, uint256 _feeAmount) Ownable(msg.sender) {
         if (_operator == address(0) || _treasury == address(0) || _tokenAddress == address(0)) {
             revert ZeroAddress();
         }
         operator = _operator;
         treasury = _treasury;
         GAS_TOKEN = _tokenAddress;
+        feeAmountPerTransfer = _feeAmount;
     }
 
     /**
