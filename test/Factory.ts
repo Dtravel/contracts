@@ -29,7 +29,7 @@ describe('Factory', function () {
 
   describe('Deployment', () => {
     it('revert if operator is zero address', async () => {
-      const [treasury] = await ethers.getSigners();
+      const { treasury } = await loadFixture(deployFactoryFixture);
 
       const gasToken = await ethers.deployContract('ERC20Test', ['token1', 'TK1']);
 
@@ -42,7 +42,7 @@ describe('Factory', function () {
     });
 
     it('revert if treasury is zero address', async () => {
-      const [operator] = await ethers.getSigners();
+      const { operator } = await loadFixture(deployFactoryFixture);
 
       const gasToken = await ethers.deployContract('ERC20Test', ['token1', 'TK1']);
 
@@ -55,7 +55,7 @@ describe('Factory', function () {
     });
 
     it('revert if gas token is zero address', async () => {
-      const [operator, treasury] = await ethers.getSigners();
+      const { operator, treasury } = await loadFixture(deployFactoryFixture);
       const fee = 500;
 
       const factoryFactory = await ethers.getContractFactory('Factory');

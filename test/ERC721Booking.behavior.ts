@@ -466,7 +466,7 @@ export function shouldBehaveLikeERC721Booking() {
             expect(await this.token.ownerOf(firstTokenId)).deep.equal(this.operator.address);
           });
 
-          it('transfer bulk of tokens to zero address', async function () {
+          it('transfer to zero address', async function () {
             expect(await this.token.balanceOf(this.to.address)).deep.equal(1);
 
             await this.token.connect(this.to).safeTransferFrom(this.to, ZeroAddress, firstTokenId);
