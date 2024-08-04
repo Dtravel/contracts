@@ -8,5 +8,6 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
+  "include": ["./ignition", "./test", "./typechain-types"],
   "files": ["./hardhat.config.ts"]
 }
