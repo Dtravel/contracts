@@ -108,7 +108,7 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
     }
 
     function transferFrom(address from, address to, uint256 tokenId) public virtual nonReentrant {
-        if (from == ownerOf(tokenId)) {
+        if (from != ownerOf(tokenId)) {
             revert WrongFrom();
         }
 
@@ -121,7 +121,6 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
 
         // Underflow of the sender's balance is impossible because we check for
         // ownership above and the recipient's balance can't realistically overflow.
-
         if (_bookedBy[tokenId] != address(0)) {
             unchecked {
                 _balanceOf[from]--;
@@ -173,11 +172,26 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
 
         _beforeTokenTransfer(from, to, fromId, toId);
 
+        // Underflow of the sender's balance is impossible because we check for
+        // ownership above and the recipient's balance can't realistically overflow.
+        uint256 amount = toId - fromId + 1;
+        if (_bookedBy[fromId] != address(0)) {
+            unchecked {
+                _balanceOf[from] -= amount;
+            }
+        }
+
+        if (to != address(0)) {
+            unchecked {
+                _balanceOf[to] += amount;
+            }
+        }
+
         address msgSender = _msgSender();
 
         uint256 tokenId = fromId;
         while (tokenId <= toId) {
-            if (from == ownerOf(tokenId)) {
+            if (from != ownerOf(tokenId)) {
                 revert WrongFrom();
             }
 
@@ -196,21 +210,6 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
             }
 
             emit Transfer(from, to, tokenId);
-        }
-
-        // Underflow of the sender's balance is impossible because we check for
-        // ownership above and the recipient's balance can't realistically overflow.
-        uint256 amount = toId - fromId + 1;
-        if (_bookedBy[tokenId] != address(0)) {
-            unchecked {
-                _balanceOf[from] -= amount;
-            }
-        }
-
-        if (to != address(0)) {
-            unchecked {
-                _balanceOf[to] += amount;
-            }
         }
 
         _afterTokenTransfer(from, to, fromId, toId);

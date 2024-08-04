@@ -22,7 +22,7 @@ describe('Factory', function () {
     const fee = 500;
 
     const factoryFactory = await ethers.getContractFactory('Factory');
-    const factory = await factoryFactory.deploy(operator.address, treasury.address, gasToken.getAddress(), fee);
+    const factory = await factoryFactory.deploy(operator.address, treasury.address, await gasToken.getAddress(), fee);
 
     return { factory, owner, operator, treasury, otherAccounts, gasToken, fee };
   }
@@ -69,7 +69,7 @@ describe('Factory', function () {
   describe('Set operator', () => {
     it('set the right owner', async () => {
       const { factory, owner } = await loadFixture(deployFactoryFixture);
-      expect(await factory.owner()).to.equal(owner.address);
+      expect(await factory.owner()).deep.equal(owner.address);
     });
 
     it('set the right operator', async () => {

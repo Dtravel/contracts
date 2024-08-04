@@ -41,7 +41,9 @@ contract NiteToken is INiteToken, ERC721Booking, Pausable, EIP712 {
         string memory _symbol,
         string memory _uri
     ) ERC721Booking(_host, _name, _symbol) EIP712("DtravelNT", "1") {
-        // add host to the whitelist in the default
+        if (_host == address(0) || _factory == address(0)) {
+            revert ZeroAddress();
+        }
 
         if (_operator != address(0)) {
             _setApprovalForAll(_host, _operator, true);
