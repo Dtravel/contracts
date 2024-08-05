@@ -824,4 +824,188 @@ describe('NiteToken', () => {
       });
     });
   });
+
+  describe('Charge gas token for nite transfers', () => {
+    describe('hosts', () => {
+      it('charge gas fee from nite contract', async () => {
+        const { token, host, treasury, otherAccounts, gasToken, factory } = await loadFixture(deployNiteTokenFixture);
+
+        const to = otherAccounts[0];
+
+        // deposit gas tokens to nite contract
+        await expect(gasToken.mint(await token.getAddress(), 1000)).changeTokenBalance(gasToken, token, 1000);
+
+        // admin update gas fee amount per transfer
+        await factory.setFeeAmountPerTransfer(200);
+
+        // host transfer 4 nites then the fee is 3 * 200 = 600
+        let tx = await token
+          .connect(host)
+          .safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 2n);
+
+        await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
+        await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-600, 600]);
+
+        // host transfer a nite token then the fee is 200
+        tx = await token
+          .connect(host)
+          ['safeTransferFrom(address,address,uint256)'](host.address, to.address, secondTokenId);
+
+        await expect(tx).changeTokenBalances(token, [host, to], [0, 1]);
+        await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-200, 200]);
+      });
+
+      it('revert when nite contract balance is insufficient', async () => {
+        const { token, host, otherAccounts, gasToken, factory } = await loadFixture(deployNiteTokenFixture);
+
+        const to = otherAccounts[0];
+
+        // deposit gas tokens to nite contract
+        await expect(gasToken.mint(await token.getAddress(), 300)).changeTokenBalance(gasToken, token, 300);
+
+        // admin update gas fee amount per transfer
+        await factory.setFeeAmountPerTransfer(200);
+
+        // host transfer 4 nites then the fee is 4 * 200 = 800
+        await expect(
+          token.connect(host).safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 3n),
+        ).revertedWithCustomError(gasToken, 'ERC20InsufficientBalance');
+      });
+    });
+
+    describe('operators', () => {
+      it('charge gas fee from nite contract', async () => {
+        const { token, host, treasury, factoryOperator, otherAccounts, gasToken, factory } =
+          await loadFixture(deployNiteTokenFixture);
+
+        const to = otherAccounts[0];
+
+        // deposit gas tokens to nite contract
+        await expect(gasToken.mint(await token.getAddress(), 1000)).changeTokenBalance(gasToken, token, 1000);
+
+        // admin update gas fee amount per transfer
+        await factory.setFeeAmountPerTransfer(200);
+
+        // host transfer 4 nites then the fee is 3 * 200 = 600
+        let tx = await token
+          .connect(factoryOperator)
+          .safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 2n);
+
+        await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
+        await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-600, 600]);
+
+        // host transfer a nite token then the fee is 200
+        tx = await token
+          .connect(host)
+          ['safeTransferFrom(address,address,uint256)'](host.address, to.address, secondTokenId);
+
+        await expect(tx).changeTokenBalances(token, [host, to], [0, 1]);
+        await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-200, 200]);
+      });
+
+      it('revert when nite contract balance is insufficient', async () => {
+        const { token, host, factoryOperator, otherAccounts, gasToken, factory } =
+          await loadFixture(deployNiteTokenFixture);
+
+        const to = otherAccounts[0];
+
+        // deposit gas tokens to nite contract
+        await expect(gasToken.mint(await token.getAddress(), 300)).changeTokenBalance(gasToken, token, 300);
+
+        // admin update gas fee amount per transfer
+        await factory.setFeeAmountPerTransfer(200);
+
+        // host transfer 4 nites then the fee is 4 * 200 = 800
+        await expect(
+          token
+            .connect(factoryOperator)
+            .safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 3n),
+        ).revertedWithCustomError(gasToken, 'ERC20InsufficientBalance');
+      });
+    });
+
+    describe('holders', () => {
+      it('charge gas fee from token owner', async () => {
+        const { token, host, treasury, factoryOperator, otherAccounts, gasToken, factory } =
+          await loadFixture(deployNiteTokenFixture);
+
+        const to = otherAccounts[0];
+
+        // deposit gas tokens to nite contract
+        await expect(gasToken.mint(await token.getAddress(), 1000)).changeTokenBalance(gasToken, token, 1000);
+
+        // admin update gas fee amount per transfer
+        await factory.setFeeAmountPerTransfer(200);
+
+        // host transfer 4 nites then the fee is 3 * 200 = 600
+        let tx = await token
+          .connect(factoryOperator)
+          .safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 2n);
+
+        await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
+        await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-600, 600]);
+
+        // host transfer a nite token then the fee is 200
+        tx = await token
+          .connect(host)
+          ['safeTransferFrom(address,address,uint256)'](host.address, to.address, secondTokenId);
+
+        await expect(tx).changeTokenBalances(token, [host, to], [0, 1]);
+        await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-200, 200]);
+
+        // host unpauses transfers
+        await token.connect(host).unpause();
+
+        // holder transfer 2 nite tokens then the fee is 2 * 200 = 400
+        await gasToken.mint(to.address, 400);
+        await gasToken.connect(to).approve(await token.getAddress(), 400);
+
+        tx = await token
+          .connect(to)
+          .safeBulkTransferFrom(to.address, factoryOperator.address, firstTokenId, firstTokenId + 1n);
+
+        await expect(tx).changeTokenBalances(gasToken, [token, to], [0, -400]);
+      });
+
+      it('revert when token owner balance is insufficient', async () => {
+        const { token, host, treasury, factoryOperator, otherAccounts, gasToken, factory } =
+          await loadFixture(deployNiteTokenFixture);
+
+        const to = otherAccounts[0];
+
+        // deposit gas tokens to nite contract
+        await expect(gasToken.mint(await token.getAddress(), 1000)).changeTokenBalance(gasToken, token, 1000);
+
+        // admin update gas fee amount per transfer
+        await factory.setFeeAmountPerTransfer(200);
+
+        // host transfer 4 nites then the fee is 3 * 200 = 600
+        let tx = await token
+          .connect(factoryOperator)
+          .safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 2n);
+
+        await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
+        await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-600, 600]);
+
+        // host transfer a nite token then the fee is 200
+        tx = await token
+          .connect(host)
+          ['safeTransferFrom(address,address,uint256)'](host.address, to.address, secondTokenId);
+
+        await expect(tx).changeTokenBalances(token, [host, to], [0, 1]);
+        await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-200, 200]);
+
+        // host unpauses transfers
+        await token.connect(host).unpause();
+
+        // holder transfer 2 nite tokens then the fee is 2 * 200 = 400
+        await gasToken.mint(to.address, 300);
+        await gasToken.connect(to).approve(await token.getAddress(), 400);
+
+        await expect(
+          token.connect(to).safeBulkTransferFrom(to.address, factoryOperator.address, firstTokenId, firstTokenId + 1n),
+        ).revertedWithCustomError(gasToken, 'ERC20InsufficientBalance');
+      });
+    });
+  });
 });

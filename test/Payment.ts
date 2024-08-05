@@ -23,7 +23,7 @@ describe('Payment', () => {
   }
 
   describe('Deployment', () => {
-    it('revert deployment on zero address admin', async () => {
+    it('revert deployment on zero address treasury', async () => {
       const paymentFactory = await ethers.getContractFactory('Payment');
 
       await expect(ethers.deployContract('Payment', [ZeroAddress, 200])).revertedWithCustomError(
