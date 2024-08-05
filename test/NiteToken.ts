@@ -4,7 +4,7 @@ import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers';
 import { ZeroAddress } from 'ethers';
 import { getRandomInt } from './utils/helpers';
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
-import { NiteToken } from '../typechain-types';
+import { ERC1271WalletMock, NiteToken } from '../typechain-types';
 
 describe('NiteToken', () => {
   // typed data hash for eip-712
@@ -69,10 +69,12 @@ describe('NiteToken', () => {
     approved: boolean,
     deadline: number,
     nonce?: bigint,
+    smartWallet?: ERC1271WalletMock,
   ): Promise<string> {
     nonce ??= await tokenContract.sigNonces(owner.address);
+    const walletAddress = await smartWallet?.getAddress();
     const data = {
-      owner: owner.address,
+      owner: walletAddress ?? owner.address,
       operator,
       approved,
       nonce,
@@ -601,6 +603,38 @@ describe('NiteToken', () => {
         });
       });
     });
+
+    describe('Support ERC1271 wallet', () => {
+      it('with matching signer and signature', async () => {
+        const { token, host, otherAccounts } = await loadFixture(deployNiteTokenFixture);
+
+        const wallet = await ethers.deployContract('ERC1271WalletMock', [host]);
+        const deadline = (await time.latest()) + 1 * min;
+        const operator = otherAccounts[0];
+
+        // transfer to smart wallet
+        await token
+          .connect(host)
+          ['safeTransferFrom(address,address,uint256)'](host.address, await wallet.getAddress(), firstTokenId);
+
+        // generate signature
+        const sigs = await generatePermitSignature(token, host, operator.address, firstTokenId, deadline);
+
+        await expect(token.connect(operator).permit(operator.address, firstTokenId, deadline, sigs))
+          .emit(token, 'Approval')
+          .withArgs(await wallet.getAddress(), operator.address, firstTokenId);
+
+        // host enable token transfers
+        await token.connect(host).unpause();
+
+        // operator transfers tokens
+        await expect(
+          token
+            .connect(operator)
+            ['safeTransferFrom(address,address,uint256)'](await wallet.getAddress(), operator.address, firstTokenId),
+        ).changeTokenBalances(token, [await wallet.getAddress(), operator], [-1, 1]);
+      });
+    });
   });
 
   describe('PermitForAll', () => {
@@ -746,6 +780,48 @@ describe('NiteToken', () => {
       await expect(
         token.connect(operator).permitForAll(host.address, operator.address, true, deadline, sigs),
       ).revertedWithCustomError(token, 'InvalidPermitSignature');
+    });
+
+    describe('Support ERC1271 wallet', () => {
+      it('with matching signer and signature', async () => {
+        const { token, host, otherAccounts } = await loadFixture(deployNiteTokenFixture);
+
+        const wallet = await ethers.deployContract('ERC1271WalletMock', [host]);
+        const deadline = (await time.latest()) + 1 * min;
+        const operator = otherAccounts[0];
+
+        // transfer to smart wallet
+        await token
+          .connect(host)
+          .safeBulkTransferFrom(host.address, await wallet.getAddress(), firstTokenId, firstTokenId + 2n);
+
+        // generate signature
+        const sigs = await generatePermitForAllSignature(
+          token,
+          host,
+          operator.address,
+          true,
+          deadline,
+          undefined,
+          wallet,
+        );
+
+        await expect(
+          token.connect(operator).permitForAll(await wallet.getAddress(), operator.address, true, deadline, sigs),
+        )
+          .emit(token, 'ApprovalForAll')
+          .withArgs(await wallet.getAddress(), operator.address, true);
+
+        // host enable token transfers
+        await token.connect(host).unpause();
+
+        // operator transfers tokens
+        await expect(
+          token
+            .connect(operator)
+            .safeBulkTransferFrom(await wallet.getAddress(), operator.address, firstTokenId, firstTokenId + 2n),
+        ).changeTokenBalances(token, [await wallet.getAddress(), operator], [-3, 3]);
+      });
     });
   });
 });
