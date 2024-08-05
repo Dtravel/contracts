@@ -438,7 +438,7 @@ export function shouldBehaveLikeERC721Booking() {
           });
         });
 
-        describe('by user', function () {
+        describe('by holder', function () {
           beforeEach(async function () {
             await this.token.connect(this.host).safeTransferFrom(this.host.address, this.to.address, firstTokenId);
           });
@@ -603,7 +603,7 @@ export function shouldBehaveLikeERC721Booking() {
           });
         });
 
-        describe('by user', function () {
+        describe('by holder', function () {
           beforeEach(async function () {
             await this.token
               .connect(this.host)

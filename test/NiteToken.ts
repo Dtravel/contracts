@@ -39,7 +39,7 @@ describe('NiteToken', () => {
   const secondTokenId = 79217n;
   const fourthTokenId = 4n;
 
-  const generateSignature = async function (
+  const generatePermitSignature = async function (
     tokenContract: NiteToken,
     owner: SignerWithAddress,
     spender: string,
@@ -60,6 +60,30 @@ describe('NiteToken', () => {
 
     // return signature
     return owner.signTypedData(domain, permitTypes, data);
+  };
+
+  const generatePermitForAllSignature = async function (
+    tokenContract: NiteToken,
+    owner: SignerWithAddress,
+    operator: string,
+    approved: boolean,
+    deadline: number,
+    nonce?: bigint,
+  ): Promise<string> {
+    nonce ??= await tokenContract.sigNonces(owner.address);
+    const data = {
+      owner: owner.address,
+      operator,
+      approved,
+      nonce,
+      deadline,
+    };
+
+    // update domain part
+    domain.verifyingContract = await tokenContract.getAddress();
+
+    // return signature
+    return owner.signTypedData(domain, permitForAllTypes, data);
   };
 
   async function deployNiteTokenFixture() {
@@ -255,7 +279,7 @@ describe('NiteToken', () => {
         const spender = otherAccounts[0];
 
         // generate signature
-        const sigs = await generateSignature(token, host, spender.address, firstTokenId, deadline);
+        const sigs = await generatePermitSignature(token, host, spender.address, firstTokenId, deadline);
 
         await expect(token.connect(host).permit(spender, firstTokenId, deadline, sigs))
           .emit(token, 'Approval')
@@ -281,7 +305,7 @@ describe('NiteToken', () => {
         await token.connect(host).unpause();
 
         // generate signature
-        const sigs = await generateSignature(token, host, spender.address, firstTokenId, deadline);
+        const sigs = await generatePermitSignature(token, host, spender.address, firstTokenId, deadline);
 
         const to = otherAccounts[2];
         const tx = await token.connect(spender).transferWithPermit(to.address, firstTokenId, deadline, sigs);
@@ -296,7 +320,7 @@ describe('NiteToken', () => {
         const spender = host;
 
         // generate signature
-        const sigs = await generateSignature(token, host, spender.address, firstTokenId, deadline);
+        const sigs = await generatePermitSignature(token, host, spender.address, firstTokenId, deadline);
 
         await expect(token.connect(host).permit(host, firstTokenId, deadline, sigs)).revertedWithCustomError(
           token,
@@ -311,7 +335,7 @@ describe('NiteToken', () => {
           const spender = otherAccounts[0];
 
           // generate signature
-          const sigs = await generateSignature(token, host, spender.address, firstTokenId, deadline);
+          const sigs = await generatePermitSignature(token, host, spender.address, firstTokenId, deadline);
 
           await expect(token.connect(host).permit(spender, firstTokenId, deadline, sigs)).revertedWithCustomError(
             token,
@@ -325,7 +349,7 @@ describe('NiteToken', () => {
           const spender = otherAccounts[0];
 
           // generate signature
-          const sigs = await generateSignature(token, spender, spender.address, firstTokenId, deadline);
+          const sigs = await generatePermitSignature(token, spender, spender.address, firstTokenId, deadline);
 
           await expect(token.connect(host).permit(spender, firstTokenId, deadline, sigs)).revertedWithCustomError(
             token,
@@ -339,7 +363,7 @@ describe('NiteToken', () => {
           const spender = otherAccounts[0];
 
           // generate signature
-          const sigs = await generateSignature(token, host, otherAccounts[1].address, firstTokenId, deadline);
+          const sigs = await generatePermitSignature(token, host, otherAccounts[1].address, firstTokenId, deadline);
 
           await expect(token.connect(host).permit(spender, firstTokenId, deadline, sigs)).revertedWithCustomError(
             token,
@@ -353,7 +377,7 @@ describe('NiteToken', () => {
           const spender = otherAccounts[0];
 
           // generate signature
-          const sigs = await generateSignature(token, host, spender.address, firstTokenId, deadline);
+          const sigs = await generatePermitSignature(token, host, spender.address, firstTokenId, deadline);
 
           await expect(token.connect(host).permit(spender, secondTokenId, deadline, sigs)).revertedWithCustomError(
             token,
@@ -367,7 +391,7 @@ describe('NiteToken', () => {
           const spender = otherAccounts[0];
 
           // generate signature
-          const sigs = await generateSignature(token, host, spender.address, firstTokenId, deadline);
+          const sigs = await generatePermitSignature(token, host, spender.address, firstTokenId, deadline);
 
           await expect(
             token.connect(host).permit(spender, firstTokenId, deadline + 2 * min, sigs),
@@ -380,7 +404,7 @@ describe('NiteToken', () => {
           const spender = otherAccounts[0];
 
           // generate signature
-          const sigs = await generateSignature(token, host, spender.address, firstTokenId, deadline, 2n);
+          const sigs = await generatePermitSignature(token, host, spender.address, firstTokenId, deadline, 2n);
 
           await expect(token.connect(host).permit(spender, firstTokenId, deadline, sigs)).revertedWithCustomError(
             token,
@@ -388,13 +412,13 @@ describe('NiteToken', () => {
           );
         });
 
-        it('revert if replay sig', async () => {
+        it('revert when replaying sig', async () => {
           const { token, host, otherAccounts } = await loadFixture(deployNiteTokenFixture);
           const deadline = (await time.latest()) + 1 * min;
           const spender = otherAccounts[0];
 
           // generate signature
-          const sigs = await generateSignature(token, host, spender.address, firstTokenId, deadline);
+          const sigs = await generatePermitSignature(token, host, spender.address, firstTokenId, deadline);
 
           await token.connect(host).permit(spender, firstTokenId, deadline, sigs);
           await expect(token.connect(host).permit(spender, firstTokenId, deadline, sigs)).revertedWithCustomError(
@@ -405,7 +429,7 @@ describe('NiteToken', () => {
       });
     });
 
-    describe('by user', () => {
+    describe('by holder', () => {
       beforeEach(async function () {
         Object.assign(this, await loadFixture(deployNiteTokenFixture));
         const [from, spender, to] = this.otherAccounts;
@@ -419,7 +443,7 @@ describe('NiteToken', () => {
         const deadline = (await time.latest()) + 1 * min;
 
         // generate signature
-        const sigs = await generateSignature(this.token, this.from, this.spender.address, firstTokenId, deadline);
+        const sigs = await generatePermitSignature(this.token, this.from, this.spender.address, firstTokenId, deadline);
 
         await expect(this.token.connect(this.host).permit(this.spender.address, firstTokenId, deadline, sigs))
           .emit(this.token, 'Approval')
@@ -438,7 +462,7 @@ describe('NiteToken', () => {
         const deadline = (await time.latest()) + 1 * min;
 
         // generate signature
-        const sigs = await generateSignature(this.token, this.from, this.spender.address, firstTokenId, deadline);
+        const sigs = await generatePermitSignature(this.token, this.from, this.spender.address, firstTokenId, deadline);
 
         const tx = await this.token
           .connect(this.spender)
@@ -453,7 +477,7 @@ describe('NiteToken', () => {
         this.spender = this.from;
 
         // generate signature
-        const sigs = await generateSignature(this.token, this.from, this.spender.address, firstTokenId, deadline);
+        const sigs = await generatePermitSignature(this.token, this.from, this.spender.address, firstTokenId, deadline);
 
         await expect(
           this.token.connect(this.spender).permit(this.spender, firstTokenId, deadline, sigs),
@@ -465,7 +489,13 @@ describe('NiteToken', () => {
           const deadline = (await time.latest()) - 1 * min;
 
           // generate signature
-          const sigs = await generateSignature(this.token, this.from, this.spender.address, firstTokenId, deadline);
+          const sigs = await generatePermitSignature(
+            this.token,
+            this.from,
+            this.spender.address,
+            firstTokenId,
+            deadline,
+          );
 
           await expect(
             this.token.connect(this.host).permit(this.spender, firstTokenId, deadline, sigs),
@@ -476,7 +506,13 @@ describe('NiteToken', () => {
           const deadline = (await time.latest()) + 1 * min;
 
           // generate signature
-          const sigs = await generateSignature(this.token, this.spender, this.spender.address, firstTokenId, deadline);
+          const sigs = await generatePermitSignature(
+            this.token,
+            this.spender,
+            this.spender.address,
+            firstTokenId,
+            deadline,
+          );
 
           await expect(
             this.token.connect(this.host).permit(this.spender, firstTokenId, deadline, sigs),
@@ -487,7 +523,7 @@ describe('NiteToken', () => {
           const deadline = (await time.latest()) + 1 * min;
 
           // generate signature
-          const sigs = await generateSignature(this.token, this.from, this.to.address, firstTokenId, deadline);
+          const sigs = await generatePermitSignature(this.token, this.from, this.to.address, firstTokenId, deadline);
 
           await expect(
             this.token.connect(this.host).permit(this.spender.address, firstTokenId, deadline, sigs),
@@ -498,7 +534,13 @@ describe('NiteToken', () => {
           const deadline = (await time.latest()) + 1 * min;
 
           // generate signature
-          const sigs = await generateSignature(this.token, this.from, this.spender.address, fourthTokenId, deadline);
+          const sigs = await generatePermitSignature(
+            this.token,
+            this.from,
+            this.spender.address,
+            fourthTokenId,
+            deadline,
+          );
 
           await expect(
             this.token.connect(this.spender).permit(this.spender, firstTokenId, deadline, sigs),
@@ -509,7 +551,13 @@ describe('NiteToken', () => {
           const deadline = (await time.latest()) + 1 * min;
 
           // generate signature
-          const sigs = await generateSignature(this.token, this.from, this.spender.address, firstTokenId, deadline);
+          const sigs = await generatePermitSignature(
+            this.token,
+            this.from,
+            this.spender.address,
+            firstTokenId,
+            deadline,
+          );
 
           await expect(
             this.token.connect(this.spender).permit(this.spender.address, firstTokenId, deadline + 2 * min, sigs),
@@ -520,18 +568,31 @@ describe('NiteToken', () => {
           const deadline = (await time.latest()) + 1 * min;
 
           // generate signature
-          const sigs = await generateSignature(this.token, this.from, this.spender.address, firstTokenId, deadline, 2n);
+          const sigs = await generatePermitSignature(
+            this.token,
+            this.from,
+            this.spender.address,
+            firstTokenId,
+            deadline,
+            2n,
+          );
 
           await expect(
             this.token.connect(this.host).permit(this.spender.address, firstTokenId, deadline, sigs),
           ).revertedWithCustomError(this.token, 'InvalidPermitSignature');
         });
 
-        it('revert if replay sig', async function () {
+        it('revert when replaying sig', async function () {
           const deadline = (await time.latest()) + 1 * min;
 
           // generate signature
-          const sigs = await generateSignature(this.token, this.from, this.spender.address, firstTokenId, deadline);
+          const sigs = await generatePermitSignature(
+            this.token,
+            this.from,
+            this.spender.address,
+            firstTokenId,
+            deadline,
+          );
 
           await this.token.connect(this.spender).permit(this.spender.address, firstTokenId, deadline, sigs);
           await expect(
@@ -539,6 +600,152 @@ describe('NiteToken', () => {
           ).revertedWithCustomError(this.token, 'InvalidPermitSignature');
         });
       });
+    });
+  });
+
+  describe('PermitForAll', () => {
+    it('should permit for all by host', async () => {
+      const { token, host, otherAccounts } = await loadFixture(deployNiteTokenFixture);
+      const deadline = (await time.latest()) + 1 * min;
+      const operator = otherAccounts[0];
+      const to = otherAccounts[1];
+
+      // generate signature
+      const sigs = await generatePermitForAllSignature(token, host, operator.address, true, deadline);
+
+      await expect(token.connect(operator).permitForAll(host.address, operator.address, true, deadline, sigs))
+        .emit(token, 'ApprovalForAll')
+        .withArgs(host.address, operator.address, true);
+
+      // host enable transfers
+      await token.connect(host).unpause();
+
+      // operator can transfer tokens
+      const tx = await token
+        .connect(operator)
+        .safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 2n);
+
+      await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
+    });
+
+    it('should permit for all by holder', async () => {
+      const { token, host, otherAccounts } = await loadFixture(deployNiteTokenFixture);
+
+      const deadline = (await time.latest()) + 1 * min;
+      const operator = otherAccounts[0];
+      const from = otherAccounts[1];
+      const to = otherAccounts[2];
+
+      await token.connect(host).safeBulkTransferFrom(host.address, from, firstTokenId, firstTokenId + 5n);
+
+      // generate signature
+      const sigs = await generatePermitForAllSignature(token, from, operator.address, true, deadline);
+
+      await expect(token.connect(operator).permitForAll(from.address, operator.address, true, deadline, sigs))
+        .emit(token, 'ApprovalForAll')
+        .withArgs(from.address, operator.address, true);
+
+      // host enable transfers
+      await token.connect(host).unpause();
+
+      // operator can transfer tokens
+      const tx = await token
+        .connect(operator)
+        .safeBulkTransferFrom(from.address, to.address, firstTokenId, firstTokenId + 2n);
+
+      await expect(tx).changeTokenBalances(token, [from, to], [-3, 3]);
+    });
+
+    it('revert if operator is zero address', async () => {
+      const { token, host, otherAccounts } = await loadFixture(deployNiteTokenFixture);
+      const deadline = (await time.latest()) + 1 * min;
+      const operator = ZeroAddress;
+
+      // generate signature
+      const sigs = await generatePermitForAllSignature(token, host, operator, true, deadline);
+
+      await expect(
+        token.connect(otherAccounts[0]).permitForAll(host.address, operator, true, deadline, sigs),
+      ).revertedWithCustomError(token, 'ZeroAddress');
+    });
+
+    it('revert if owner param does not match with sig', async () => {
+      const { token, host, otherAccounts, factoryOperator } = await loadFixture(deployNiteTokenFixture);
+      const deadline = (await time.latest()) + 1 * min;
+      const operator = otherAccounts[0];
+
+      // generate signature
+      const sigs = await generatePermitForAllSignature(token, host, operator.address, true, deadline);
+
+      await expect(
+        token.connect(operator).permitForAll(factoryOperator.address, operator.address, true, deadline, sigs),
+      ).revertedWithCustomError(token, 'InvalidPermitSignature');
+    });
+
+    it('revert if operator param does not match with sig', async () => {
+      const { token, host, otherAccounts, factoryOperator } = await loadFixture(deployNiteTokenFixture);
+      const deadline = (await time.latest()) + 1 * min;
+      const operator = otherAccounts[0];
+
+      // generate signature
+      const sigs = await generatePermitForAllSignature(token, host, operator.address, true, deadline);
+
+      await expect(
+        token.connect(operator).permitForAll(host.address, factoryOperator.address, true, deadline, sigs),
+      ).revertedWithCustomError(token, 'InvalidPermitSignature');
+    });
+
+    it('revert if approved param does not match with sig', async () => {
+      const { token, host, otherAccounts } = await loadFixture(deployNiteTokenFixture);
+      const deadline = (await time.latest()) + 1 * min;
+      const operator = otherAccounts[0];
+
+      // generate signature
+      const sigs = await generatePermitForAllSignature(token, host, operator.address, false, deadline);
+
+      await expect(
+        token.connect(operator).permitForAll(host.address, operator.address, true, deadline, sigs),
+      ).revertedWithCustomError(token, 'InvalidPermitSignature');
+    });
+
+    it('revert if deadline param does not match with sig', async () => {
+      const { token, host, otherAccounts } = await loadFixture(deployNiteTokenFixture);
+      const deadline = (await time.latest()) + 1 * min;
+      const operator = otherAccounts[0];
+
+      // generate signature
+      const sigs = await generatePermitForAllSignature(token, host, operator.address, true, deadline);
+
+      await expect(
+        token.connect(operator).permitForAll(host.address, operator.address, true, deadline + 2 * min, sigs),
+      ).revertedWithCustomError(token, 'InvalidPermitSignature');
+    });
+
+    it('revert if nonce does not match with sig', async () => {
+      const { token, host, otherAccounts } = await loadFixture(deployNiteTokenFixture);
+      const deadline = (await time.latest()) + 1 * min;
+      const operator = otherAccounts[0];
+
+      // generate signature
+      const sigs = await generatePermitForAllSignature(token, host, operator.address, true, deadline, 3n);
+
+      await expect(
+        token.connect(operator).permitForAll(host.address, operator.address, true, deadline, sigs),
+      ).revertedWithCustomError(token, 'InvalidPermitSignature');
+    });
+
+    it('revert when replaying sig', async () => {
+      const { token, host, otherAccounts } = await loadFixture(deployNiteTokenFixture);
+      const deadline = (await time.latest()) + 1 * min;
+      const operator = otherAccounts[0];
+
+      // generate signature
+      const sigs = await generatePermitForAllSignature(token, host, operator.address, true, deadline);
+
+      await token.connect(operator).permitForAll(host.address, operator.address, true, deadline, sigs);
+      await expect(
+        token.connect(operator).permitForAll(host.address, operator.address, true, deadline, sigs),
+      ).revertedWithCustomError(token, 'InvalidPermitSignature');
     });
   });
 });
