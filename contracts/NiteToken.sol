@@ -85,7 +85,7 @@ contract NiteToken is INiteToken, ERC721Booking, Pausable, EIP712 {
             if (isHostOrWhitelisted) {
                 IERC20(FACTORY.gasToken()).safeTransfer(treasury, fee);
             } else {
-                IERC20(FACTORY.gasToken()).safeTransferFrom(_msgSender(), treasury, fee);
+                IERC20(FACTORY.gasToken()).safeTransferFrom(ownerOf(fromId), treasury, fee);
             }
         }
     }
