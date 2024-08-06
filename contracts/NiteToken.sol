@@ -35,7 +35,7 @@ contract NiteToken is INiteToken, ERC721Booking, Pausable, EIP712 {
 
     constructor(
         address _host,
-        address _operator,
+        address _intialApproved,
         address _factory,
         string memory _name,
         string memory _symbol,
@@ -45,8 +45,8 @@ contract NiteToken is INiteToken, ERC721Booking, Pausable, EIP712 {
             revert ZeroAddress();
         }
 
-        if (_operator != address(0)) {
-            _setApprovalForAll(_host, _operator, true);
+        if (_intialApproved != address(0)) {
+            _setApprovalForAll(_host, _intialApproved, true);
         }
         FACTORY = IFactory(_factory);
         baseTokenURI = _uri;
@@ -81,14 +81,12 @@ contract NiteToken is INiteToken, ERC721Booking, Pausable, EIP712 {
         address treasury = FACTORY.treasury();
         uint256 amount = (lastId == 0) ? 1 : lastId - fromId + 1;
         uint256 fee = amount * FACTORY.feeAmountPerTransfer();
-        if (fee == 0) {
-            return;
-        }
-
-        if (isHostOrWhitelisted) {
-            IERC20(FACTORY.gasToken()).safeTransfer(treasury, fee);
-        } else {
-            IERC20(FACTORY.gasToken()).safeTransferFrom(_msgSender(), treasury, fee);
+        if (fee > 0) {
+            if (isHostOrWhitelisted) {
+                IERC20(FACTORY.gasToken()).safeTransfer(treasury, fee);
+            } else {
+                IERC20(FACTORY.gasToken()).safeTransferFrom(_msgSender(), treasury, fee);
+            }
         }
     }
 

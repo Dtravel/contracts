@@ -657,7 +657,9 @@ describe('NiteToken', () => {
       // operator can transfer tokens
       const tx = await token
         .connect(operator)
-        .safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 2n);
+        [
+          'safeBulkTransferFrom(address,address,uint256,uint256)'
+        ](host.address, to.address, firstTokenId, firstTokenId + 2n);
 
       await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
     });
@@ -670,7 +672,11 @@ describe('NiteToken', () => {
       const from = otherAccounts[1];
       const to = otherAccounts[2];
 
-      await token.connect(host).safeBulkTransferFrom(host.address, from, firstTokenId, firstTokenId + 5n);
+      await token
+        .connect(host)
+        [
+          'safeBulkTransferFrom(address,address,uint256,uint256,bytes)'
+        ](host.address, from, firstTokenId, firstTokenId + 5n, '0x42');
 
       // generate signature
       const sigs = await generatePermitForAllSignature(token, from, operator.address, true, deadline);
@@ -685,7 +691,9 @@ describe('NiteToken', () => {
       // operator can transfer tokens
       const tx = await token
         .connect(operator)
-        .safeBulkTransferFrom(from.address, to.address, firstTokenId, firstTokenId + 2n);
+        [
+          'safeBulkTransferFrom(address,address,uint256,uint256,bytes)'
+        ](from.address, to.address, firstTokenId, firstTokenId + 2n, '0x42');
 
       await expect(tx).changeTokenBalances(token, [from, to], [-3, 3]);
     });
@@ -793,7 +801,9 @@ describe('NiteToken', () => {
         // transfer to smart wallet
         await token
           .connect(host)
-          .safeBulkTransferFrom(host.address, await wallet.getAddress(), firstTokenId, firstTokenId + 2n);
+          [
+            'safeBulkTransferFrom(address,address,uint256,uint256)'
+          ](host.address, await wallet.getAddress(), firstTokenId, firstTokenId + 2n);
 
         // generate signature
         const sigs = await generatePermitForAllSignature(
@@ -819,7 +829,9 @@ describe('NiteToken', () => {
         await expect(
           token
             .connect(operator)
-            .safeBulkTransferFrom(await wallet.getAddress(), operator.address, firstTokenId, firstTokenId + 2n),
+            [
+              'safeBulkTransferFrom(address,address,uint256,uint256)'
+            ](await wallet.getAddress(), operator.address, firstTokenId, firstTokenId + 2n),
         ).changeTokenBalances(token, [await wallet.getAddress(), operator], [-3, 3]);
       });
     });
@@ -841,7 +853,9 @@ describe('NiteToken', () => {
         // host transfer 4 nites then the fee is 3 * 200 = 600
         let tx = await token
           .connect(host)
-          .safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 2n);
+          [
+            'safeBulkTransferFrom(address,address,uint256,uint256)'
+          ](host.address, to.address, firstTokenId, firstTokenId + 2n);
 
         await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
         await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-600, 600]);
@@ -868,7 +882,11 @@ describe('NiteToken', () => {
 
         // host transfer 4 nites then the fee is 4 * 200 = 800
         await expect(
-          token.connect(host).safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 3n),
+          token
+            .connect(host)
+            [
+              'safeBulkTransferFrom(address,address,uint256,uint256)'
+            ](host.address, to.address, firstTokenId, firstTokenId + 3n),
         ).revertedWithCustomError(gasToken, 'ERC20InsufficientBalance');
       });
     });
@@ -889,7 +907,9 @@ describe('NiteToken', () => {
         // host transfer 4 nites then the fee is 3 * 200 = 600
         let tx = await token
           .connect(factoryOperator)
-          .safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 2n);
+          [
+            'safeBulkTransferFrom(address,address,uint256,uint256)'
+          ](host.address, to.address, firstTokenId, firstTokenId + 2n);
 
         await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
         await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-600, 600]);
@@ -919,7 +939,9 @@ describe('NiteToken', () => {
         await expect(
           token
             .connect(factoryOperator)
-            .safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 3n),
+            [
+              'safeBulkTransferFrom(address,address,uint256,uint256)'
+            ](host.address, to.address, firstTokenId, firstTokenId + 3n),
         ).revertedWithCustomError(gasToken, 'ERC20InsufficientBalance');
       });
     });
@@ -940,7 +962,9 @@ describe('NiteToken', () => {
         // host transfer 4 nites then the fee is 3 * 200 = 600
         let tx = await token
           .connect(factoryOperator)
-          .safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 2n);
+          [
+            'safeBulkTransferFrom(address,address,uint256,uint256)'
+          ](host.address, to.address, firstTokenId, firstTokenId + 2n);
 
         await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
         await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-600, 600]);
@@ -962,7 +986,9 @@ describe('NiteToken', () => {
 
         tx = await token
           .connect(to)
-          .safeBulkTransferFrom(to.address, factoryOperator.address, firstTokenId, firstTokenId + 1n);
+          [
+            'safeBulkTransferFrom(address,address,uint256,uint256)'
+          ](to.address, factoryOperator.address, firstTokenId, firstTokenId + 1n);
 
         await expect(tx).changeTokenBalances(gasToken, [token, to], [0, -400]);
       });
@@ -982,7 +1008,9 @@ describe('NiteToken', () => {
         // host transfer 4 nites then the fee is 3 * 200 = 600
         let tx = await token
           .connect(factoryOperator)
-          .safeBulkTransferFrom(host.address, to.address, firstTokenId, firstTokenId + 2n);
+          [
+            'safeBulkTransferFrom(address,address,uint256,uint256)'
+          ](host.address, to.address, firstTokenId, firstTokenId + 2n);
 
         await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
         await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-600, 600]);
@@ -1003,7 +1031,11 @@ describe('NiteToken', () => {
         await gasToken.connect(to).approve(await token.getAddress(), 400);
 
         await expect(
-          token.connect(to).safeBulkTransferFrom(to.address, factoryOperator.address, firstTokenId, firstTokenId + 1n),
+          token
+            .connect(to)
+            [
+              'safeBulkTransferFrom(address,address,uint256,uint256)'
+            ](to.address, factoryOperator.address, firstTokenId, firstTokenId + 1n),
         ).revertedWithCustomError(gasToken, 'ERC20InsufficientBalance');
       });
     });

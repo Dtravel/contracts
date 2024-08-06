@@ -165,7 +165,13 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
     /*============================================================
                             BULK TRANSFER LOGIC
     ============================================================*/
-    function safeBulkTransferFrom(address from, address to, uint256 fromId, uint256 toId) public virtual nonReentrant {
+    function _safeBulkTransferFrom(
+        address from,
+        address to,
+        uint256 fromId,
+        uint256 toId,
+        bytes memory data
+    ) internal virtual {
         if (fromId >= toId) {
             revert InvalidTokenId();
         }
@@ -199,7 +205,7 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
                 revert Unauthorized();
             }
 
-            _validateReceipient(from, to, fromId, "");
+            _validateReceipient(from, to, fromId, data);
 
             _bookedBy[tokenId] = to;
 
@@ -213,6 +219,20 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
         }
 
         _afterTokenTransfer(from, to, fromId, toId);
+    }
+
+    function safeBulkTransferFrom(address from, address to, uint256 fromId, uint256 toId) public virtual nonReentrant {
+        _safeBulkTransferFrom(from, to, fromId, toId, "");
+    }
+
+    function safeBulkTransferFrom(
+        address from,
+        address to,
+        uint256 fromId,
+        uint256 toId,
+        bytes memory data
+    ) public virtual nonReentrant {
+        _safeBulkTransferFrom(from, to, fromId, toId, data);
     }
 
     /*============================================================
