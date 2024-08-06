@@ -230,7 +230,7 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
         address to,
         uint256 fromId,
         uint256 toId,
-        bytes memory data
+        bytes calldata data
     ) public virtual nonReentrant {
         _safeBulkTransferFrom(from, to, fromId, toId, data);
     }
