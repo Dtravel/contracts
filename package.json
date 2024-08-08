@@ -1,7 +1,7 @@
 {
-  "name": "booking-contracts",
-  "version": "0.4.0",
-  "description": "Smart contracts for Dtravel booking",
+  "name": "contracts",
+  "version": "4.0.0",
+  "description": "Smart contracts for Dtravel ecosystem",
   "devDependencies": {
     "@eslint/js": "^9.8.0",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
@@ -41,8 +41,8 @@
     "chain": "npx hardhat node",
     "compile": "npx hardhat compile",
     "deploy": "npx hardhat run --network localhost scripts/deploy.ts",
-    "deploy:testnet": "npx hardhat run --network testnet scripts/deploy.ts",
-    "deploy:mainnet": "npx hardhat run --network mainnet scripts/deploy.ts",
+    "deploy:testnet": "npx hardhat ignition deploy ignition/modules/Factory.ts --network testnet && npx hardhat ignition deploy ignition/modules/Payment.ts --network testnet",
+    "deploy:mainnet": "npx hardhat ignition deploy ignition/modules/Factory.ts --network mainnet && npx hardhat ignition deploy ignition/modules/Payment.ts --network mainnet",
     "test": "npx hardhat compile && REPORT_GAS=true npx hardhat test",
     "test:coverage": "npx hardhat coverage",
     "format:sol": "npx prettier --write --plugin=prettier-plugin-solidity ./contracts -l",

@@ -1,10 +1,10 @@
-# Dtravel booking contract V4
+# Smart contracts V4
 
 This repository contains the core smart contracts for Dtravel Booking Service, using **Nite Tokens**.
 
 ## Prerequisites
 
-Node >= 10.x && yarn > 1.x
+Node >= 20.x && yarn > 1.22.x
 
 ```
 $ node --version
@@ -44,30 +44,32 @@ $ yarn test
 yarn test:coverage
 ```
 
-## Linter and prettiers
+## Deployment
 
-1. Run linter to analyze convention and security for smart contracts
-
-```
-$ yarn lint:sol
-```
-
-2. Format smart contracts
+1. Config `.env`
 
 ```
-$ yarn format:sol
+ADMIN_PRIVATE_KEY=
+OPERATOR_ADDRESS=
+TREASURY_ADDRESS=
+TOKEN_ADDRESS=
+FEE_AMOUNT_PER_TRANSFER=
+FEE_NUMERATOR=
+SCAN_API_KEY=
+BASE_TESTNET_RPC=
+BASE_MAINNET_RPC=
 ```
 
-3. Run eslint for typescript files
+2. Deploy contracts
+
+- Testnet:
 
 ```
-$ yarn lint:ts
+yarn deploy:testnet
 ```
 
-4. Format typescript files
+- Mainnet
 
 ```
-$ yarn format:ts
+yarn deploy:mainnet
 ```
-
-- **_Note_**: _Updated husky pre-commit hook_
