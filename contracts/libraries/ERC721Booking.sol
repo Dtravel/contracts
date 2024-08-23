@@ -170,7 +170,7 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
 
     function safeTransferFrom(address from, address to, uint256 tokenId) public virtual nonReentrant {
         _transferFrom(from, to, tokenId, "");
-        _validateReceipient(from, to, tokenId, "");
+        _validateRecipient(from, to, tokenId, "");
     }
 
     function safeTransferFrom(
@@ -180,7 +180,7 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
         bytes calldata data
     ) public virtual nonReentrant {
         _transferFrom(from, to, tokenId, data);
-        _validateReceipient(from, to, tokenId, data);
+        _validateRecipient(from, to, tokenId, data);
     }
 
     function _updateTokenStorage(address from, address to, uint256 tokenId) internal virtual {
@@ -229,7 +229,7 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
         }
     }
 
-    function _validateReceipient(address from, address to, uint256 tokenId, bytes memory data) internal virtual {
+    function _validateRecipient(address from, address to, uint256 tokenId, bytes memory data) internal virtual {
         if (
             to.code.length != 0 &&
             IERC721Receiver(to).onERC721Received(_msgSender(), from, tokenId, data) !=
@@ -260,7 +260,7 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
         uint256 tokenId = fromId;
         while (tokenId <= toId) {
             _validateOwnerAndSender(from, tokenId);
-            _validateReceipient(from, to, tokenId, data);
+            _validateRecipient(from, to, tokenId, data);
 
             _updateTokenStorage(from, to, tokenId);
 
