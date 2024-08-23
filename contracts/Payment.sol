@@ -15,6 +15,9 @@ contract Payment is IPayment, Ownable {
     // fee = feeNumerator / FEE_DENOMINATOR
     uint256 public feeNumerator;
 
+    // mapping from supported token address to fixed fee (address(0) = native coin)
+    mapping(address => uint256) public fixedFees;
+
     constructor(address _treasury, uint256 _feeNumerator) Ownable(msg.sender) {
         if (_treasury == address(0)) {
             revert ZeroAddress();
@@ -47,6 +50,17 @@ contract Payment is IPayment, Ownable {
     }
 
     /**
+     * @notice Set fixed fee
+     * @dev    Caller must be CONTRACT OWNER
+     * @param _token the token address
+     * @param _fee the fixed fee
+     */
+    function setFixedFee(address _token, uint256 _fee) external onlyOwner {
+        fixedFees[_token] = _fee;
+        emit NewFixedFee(_token, _fee);
+    }
+
+    /**
      * @notice Make an on-chain payment
      * @dev Caller can be ANYONE
      */
@@ -62,16 +76,24 @@ contract Payment is IPayment, Ownable {
         address _treasury = treasury;
         uint256 _feeNumerator = feeNumerator;
 
+        address token;
+        uint256 fixedFee;
         for (uint256 i; i < n; ) {
-            if (_payments[i].amount > 0) {
-                _payment(_payments[i].token, msgSender, _payments[i].receiver, _payments[i].amount);
+            token = _payments[i].token;
+            fixedFee = fixedFees[token];
+            if (fixedFee == 0) {
+                revert FixedFeeUnset();
+            }
 
-                _payment(
-                    _payments[i].token,
-                    msgSender,
-                    _treasury,
-                    (_payments[i].amount * _feeNumerator) / FEE_DENOMINATOR
-                );
+            // charge the fixed fee, regardless of payment amount
+            _payment(token, msgSender, _treasury, fixedFee);
+
+            if (_payments[i].amount > 0) {
+                // process the payment
+                _payment(token, msgSender, _payments[i].receiver, _payments[i].amount);
+
+                // charge the commission fee
+                _payment(token, msgSender, _treasury, (_payments[i].amount * _feeNumerator) / FEE_DENOMINATOR);
             }
             unchecked {
                 ++i;
