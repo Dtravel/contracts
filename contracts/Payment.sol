@@ -81,12 +81,10 @@ contract Payment is IPayment, Ownable {
         for (uint256 i; i < n; ) {
             token = _payments[i].token;
             fixedFee = fixedFees[token];
-            if (fixedFee == 0) {
-                revert FixedFeeUnset();
+            if (fixedFee > 0) {
+                // charge the fixed fee, regardless of payment amount
+                _payment(token, msgSender, _treasury, fixedFee);
             }
-
-            // charge the fixed fee, regardless of payment amount
-            _payment(token, msgSender, _treasury, fixedFee);
 
             if (_payments[i].amount > 0) {
                 // process the payment

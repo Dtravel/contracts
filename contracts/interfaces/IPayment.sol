@@ -21,5 +21,4 @@ interface IPayment {
     error ZeroAddress();
     error EmptyPaymentList();
     error TransferFailed();
-    error FixedFeeUnset();
 }
