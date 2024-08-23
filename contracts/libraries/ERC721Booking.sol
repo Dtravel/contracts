@@ -51,37 +51,29 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
         }
 
         bookings[bookingCounter] = Booking(fromId, toId, data);
-        if (fromId == toId) {
-            bookingIds[fromId] = bookingCounter;
-        } else {
-            uint256 tokenId = fromId;
-            while (tokenId <= toId) {
-                bookingIds[tokenId] = bookingCounter;
-                unchecked {
-                    tokenId++;
-                }
+        uint256 tokenId = fromId;
+        while (tokenId <= toId) {
+            bookingIds[tokenId] = bookingCounter;
+            unchecked {
+                tokenId++;
             }
         }
     }
 
     function _deleteBooking(uint256 fromId, uint256 toId) internal virtual {
-        if (fromId == toId) {
-            delete bookingIds[fromId];
-        } else {
-            if (bookingIds[fromId] != bookingIds[toId]) {
-                revert MismatchedBookingIds();
-            }
+        if (bookingIds[fromId] != bookingIds[toId]) {
+            revert MismatchedBookingIds();
+        }
 
-            uint256 tokenId = fromId;
-            while (tokenId <= toId) {
-                delete bookingIds[tokenId];
-                unchecked {
-                    tokenId++;
-                }
+        uint256 tokenId = fromId;
+        while (tokenId <= toId) {
+            delete bookingIds[tokenId];
+            unchecked {
+                tokenId++;
             }
         }
 
-        delete bookings[fromId];
+        delete bookings[bookingIds[fromId]];
     }
 
     /*============================================================
@@ -162,40 +154,12 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
     }
 
     function _transferFrom(address from, address to, uint256 tokenId, bytes memory data) internal virtual {
-        if (from != ownerOf(tokenId)) {
-            revert WrongFrom();
-        }
-
-        address msgSender = _msgSender();
-        if (msgSender != from && !isApprovedForAll[from][msgSender] && msgSender != getApproved[tokenId]) {
-            revert Unauthorized();
-        }
+        _validateOwnerAndSender(from, tokenId);
 
         _beforeTokenTransfer(from, to, tokenId, 0);
 
-        if (_bookedBy[tokenId] == address(0)) {
-            _createBooking(tokenId, tokenId, data);
-        } else {
-            // Underflow of the sender's balance is impossible because we check for
-            // ownership above and the recipient's balance can't realistically overflow.
-            unchecked {
-                _balanceOf[from]--;
-            }
-        }
-
-        if (to == address(0)) {
-            _deleteBooking(tokenId, tokenId);
-        } else {
-            unchecked {
-                _balanceOf[to]++;
-            }
-        }
-
-        _bookedBy[tokenId] = to;
-
-        delete getApproved[tokenId];
-
-        emit Transfer(from, to, tokenId);
+        _updateBookingAndBalance(from, to, tokenId, tokenId, data);
+        _updateTokenStorage(from, to, tokenId);
 
         _afterTokenTransfer(from, to, tokenId, 0);
     }
@@ -217,6 +181,52 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
     ) public virtual nonReentrant {
         _transferFrom(from, to, tokenId, data);
         _validateReceipient(from, to, tokenId, data);
+    }
+
+    function _updateTokenStorage(address from, address to, uint256 tokenId) internal virtual {
+        _bookedBy[tokenId] = to;
+
+        delete getApproved[tokenId];
+
+        emit Transfer(from, to, tokenId);
+    }
+
+    function _updateBookingAndBalance(
+        address from,
+        address to,
+        uint256 fromId,
+        uint256 toId,
+        bytes memory data
+    ) internal virtual {
+        uint256 amount = toId - fromId + 1;
+        if (_bookedBy[fromId] == address(0)) {
+            _createBooking(fromId, toId, data);
+        } else {
+            // Underflow of the sender's balance is impossible because we check for
+            // ownership above and the recipient's balance can't realistically overflow.
+            unchecked {
+                _balanceOf[from] -= amount;
+            }
+        }
+
+        if (to == address(0)) {
+            _deleteBooking(fromId, toId);
+        } else {
+            unchecked {
+                _balanceOf[to] += amount;
+            }
+        }
+    }
+
+    function _validateOwnerAndSender(address from, uint256 tokenId) internal virtual {
+        if (from != ownerOf(tokenId)) {
+            revert WrongFrom();
+        }
+
+        address msgSender = _msgSender();
+        if (msgSender != from && !isApprovedForAll[from][msgSender] && msgSender != getApproved[tokenId]) {
+            revert Unauthorized();
+        }
     }
 
     function _validateReceipient(address from, address to, uint256 tokenId, bytes memory data) internal virtual {
@@ -245,48 +255,18 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
 
         _beforeTokenTransfer(from, to, fromId, toId);
 
-        uint256 amount = toId - fromId + 1;
-        if (_bookedBy[fromId] == address(0)) {
-            _createBooking(fromId, toId, data);
-        } else {
-            // Underflow of the sender's balance is impossible because we check for
-            // ownership above and the recipient's balance can't realistically overflow.
-            unchecked {
-                _balanceOf[from] -= amount;
-            }
-        }
-
-        if (to == address(0)) {
-            _deleteBooking(fromId, toId);
-        } else {
-            unchecked {
-                _balanceOf[to] += amount;
-            }
-        }
-
-        address msgSender = _msgSender();
+        _updateBookingAndBalance(from, to, fromId, toId, data);
 
         uint256 tokenId = fromId;
         while (tokenId <= toId) {
-            if (from != ownerOf(tokenId)) {
-                revert WrongFrom();
-            }
+            _validateOwnerAndSender(from, tokenId);
+            _validateReceipient(from, to, tokenId, data);
 
-            if (msgSender != from && !isApprovedForAll[from][msgSender] && msgSender != getApproved[tokenId]) {
-                revert Unauthorized();
-            }
-
-            _validateReceipient(from, to, fromId, data);
-
-            _bookedBy[tokenId] = to;
-
-            delete getApproved[tokenId];
+            _updateTokenStorage(from, to, tokenId);
 
             unchecked {
                 tokenId += 1;
             }
-
-            emit Transfer(from, to, tokenId);
         }
 
         _afterTokenTransfer(from, to, fromId, toId);
