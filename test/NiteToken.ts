@@ -1,7 +1,7 @@
 import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers';
-import { ZeroAddress } from 'ethers';
+import { ZeroAddress, toUtf8Bytes } from 'ethers';
 import { getRandomInt } from './utils/helpers';
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
 import { ERC1271WalletMock, NiteToken } from '../typechain-types';
@@ -1037,6 +1037,318 @@ describe('NiteToken', () => {
               'safeBulkTransferFrom(address,address,uint256,uint256)'
             ](to.address, factoryOperator.address, firstTokenId, firstTokenId + 1n),
         ).revertedWithCustomError(gasToken, 'ERC20InsufficientBalance');
+      });
+    });
+  });
+
+  describe('Integrate booking data', () => {
+    describe('create booking data', () => {
+      describe('single transfer', () => {
+        it('create a new booking with no data', async () => {
+          const { token, host, treasury, otherAccounts, gasToken, factory } = await loadFixture(deployNiteTokenFixture);
+
+          const to = otherAccounts[0];
+
+          // deposit gas tokens to nite contract
+          await expect(gasToken.mint(await token.getAddress(), 1000)).changeTokenBalance(gasToken, token, 1000);
+
+          // admin update gas fee amount per transfer
+          await factory.setFeeAmountPerTransfer(200);
+
+          // host transfer a nite then the fee is 200
+          const tx = await token
+            .connect(host)
+            ['safeTransferFrom(address,address,uint256)'](host.address, to.address, firstTokenId);
+
+          await expect(tx).changeTokenBalances(token, [host, to], [0, 1]);
+          await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-200, 200]);
+
+          // check new booking data
+          const bookingId = 1;
+          expect(await token.bookingIds(firstTokenId)).deep.equal(bookingId);
+
+          expect((await token.bookings(bookingId)).checkIn).deep.equal(firstTokenId);
+          expect((await token.bookings(bookingId)).checkOut).deep.equal(firstTokenId);
+          expect((await token.bookings(bookingId)).data).deep.equal('0x');
+        });
+
+        it('create a new booking with data', async () => {
+          const { token, host, treasury, otherAccounts, gasToken, factory } = await loadFixture(deployNiteTokenFixture);
+
+          const to = otherAccounts[0];
+          const data = '0x42';
+
+          // deposit gas tokens to nite contract
+          await expect(gasToken.mint(await token.getAddress(), 1000)).changeTokenBalance(gasToken, token, 1000);
+
+          // admin update gas fee amount per transfer
+          await factory.setFeeAmountPerTransfer(200);
+
+          // host transfer a nite then the fee is 200
+          const tx = await token
+            .connect(host)
+            ['safeTransferFrom(address,address,uint256,bytes)'](host.address, to.address, firstTokenId, data);
+
+          await expect(tx).changeTokenBalances(token, [host, to], [0, 1]);
+          await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-200, 200]);
+
+          // check new booking data
+          const bookingId = 1;
+          expect(await token.bookingIds(firstTokenId)).deep.equal(bookingId);
+
+          expect((await token.bookings(bookingId)).checkIn).deep.equal(firstTokenId);
+          expect((await token.bookings(bookingId)).checkOut).deep.equal(firstTokenId);
+          expect((await token.bookings(bookingId)).data).deep.equal('0x42');
+        });
+      });
+
+      describe('bulk transfer', () => {
+        it('create a new booking with no data', async () => {
+          const { token, host, treasury, otherAccounts, gasToken, factory } = await loadFixture(deployNiteTokenFixture);
+
+          const to = otherAccounts[0];
+          const fromId = firstTokenId;
+          const toId = fromId + 2n;
+
+          // deposit gas tokens to nite contract
+          await expect(gasToken.mint(await token.getAddress(), 1000)).changeTokenBalance(gasToken, token, 1000);
+
+          // admin update gas fee amount per transfer
+          await factory.setFeeAmountPerTransfer(200);
+
+          // host transfer 4 nites then the fee is 3 * 200 = 600
+          const tx = await token
+            .connect(host)
+            ['safeBulkTransferFrom(address,address,uint256,uint256)'](host.address, to.address, fromId, toId);
+
+          await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
+          await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-600, 600]);
+
+          // check new booking data
+          const bookingId = 1;
+          for (let i = fromId; i <= toId; i++) {
+            expect(await token.bookingIds(i)).deep.equal(bookingId);
+          }
+          expect((await token.bookings(bookingId)).checkIn).deep.equal(fromId);
+          expect((await token.bookings(bookingId)).checkOut).deep.equal(toId);
+          expect((await token.bookings(bookingId)).data).deep.equal('0x');
+        });
+
+        it('create a new booking with data', async () => {
+          const { token, host, treasury, otherAccounts, gasToken, factory } = await loadFixture(deployNiteTokenFixture);
+
+          const to = otherAccounts[0];
+          const fromId = firstTokenId;
+          const toId = fromId + 2n;
+          const data = '0x42';
+
+          // deposit gas tokens to nite contract
+          await expect(gasToken.mint(await token.getAddress(), 1000)).changeTokenBalance(gasToken, token, 1000);
+
+          // admin update gas fee amount per transfer
+          await factory.setFeeAmountPerTransfer(200);
+
+          // host transfer 4 nites then the fee is 3 * 200 = 600
+          const tx = await token
+            .connect(host)
+            [
+              'safeBulkTransferFrom(address,address,uint256,uint256,bytes)'
+            ](host.address, to.address, fromId, toId, data);
+
+          await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
+          await expect(tx).changeTokenBalances(gasToken, [token, treasury], [-600, 600]);
+
+          // check new booking data
+          const bookingId = 1;
+          for (let i = fromId; i <= toId; i++) {
+            expect(await token.bookingIds(i)).deep.equal(bookingId);
+          }
+          expect((await token.bookings(bookingId)).checkIn).deep.equal(fromId);
+          expect((await token.bookings(bookingId)).checkOut).deep.equal(toId);
+        });
+      });
+    });
+
+    describe('delete booking data', () => {
+      describe('single transfer', () => {
+        it('delete booking data if transfer token to zero address', async () => {
+          const { token, host, otherAccounts, gasToken } = await loadFixture(deployNiteTokenFixture);
+
+          const to = otherAccounts[0];
+          const data = '0x42';
+
+          // deposit gas tokens to nite contract
+          await expect(gasToken.mint(await token.getAddress(), 1000)).changeTokenBalance(gasToken, token, 1000);
+
+          // host transfer a nite
+          const tx = await token
+            .connect(host)
+            ['safeTransferFrom(address,address,uint256,bytes)'](host.address, to.address, firstTokenId, data);
+
+          await expect(tx).changeTokenBalances(token, [host, to], [0, 1]);
+
+          // check new booking data
+          const bookingId = 1;
+          expect(await token.bookingIds(firstTokenId)).deep.equal(bookingId);
+
+          expect((await token.bookings(bookingId)).checkIn).deep.equal(firstTokenId);
+          expect((await token.bookings(bookingId)).checkOut).deep.equal(firstTokenId);
+          expect((await token.bookings(bookingId)).data).deep.equal('0x42');
+
+          // host unpause transferring
+          await token.connect(host).unpause();
+
+          // owner transfers token to zero address to delete booking
+          await expect(
+            token.connect(to)['safeTransferFrom(address,address,uint256)'](to.address, ZeroAddress, firstTokenId),
+          ).changeTokenBalance(token, to, -1);
+
+          // check booking data
+          expect(await token.bookingIds(firstTokenId)).deep.equal(0);
+
+          expect((await token.bookings(bookingId)).checkIn).deep.equal(0);
+          expect((await token.bookings(bookingId)).checkOut).deep.equal(0);
+          expect((await token.bookings(bookingId)).data).deep.equal('0x');
+        });
+      });
+
+      describe('bulk transfer', () => {
+        it('delete booking data if transfer tokens to zero address', async () => {
+          const { token, host, otherAccounts, gasToken } = await loadFixture(deployNiteTokenFixture);
+
+          const to = otherAccounts[0];
+          const fromId = firstTokenId;
+          const toId = fromId + 2n;
+          const data = '0x42';
+
+          // deposit gas tokens to nite contract
+          await expect(gasToken.mint(await token.getAddress(), 1000)).changeTokenBalance(gasToken, token, 1000);
+
+          // host unpause transferring
+          await token.connect(host).unpause();
+
+          // host transfer 4 nites
+          const tx = await token
+            .connect(host)
+            [
+              'safeBulkTransferFrom(address,address,uint256,uint256,bytes)'
+            ](host.address, to.address, fromId, toId, data);
+
+          await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
+
+          // check new booking data
+          const bookingId = 1;
+          for (let i = fromId; i <= toId; i++) {
+            expect(await token.bookingIds(i)).deep.equal(bookingId);
+          }
+          expect((await token.bookings(bookingId)).checkIn).deep.equal(fromId);
+          expect((await token.bookings(bookingId)).checkOut).deep.equal(toId);
+
+          // owner transfers token to zero address to delete booking
+          await expect(
+            token
+              .connect(to)
+              [
+                'safeBulkTransferFrom(address,address,uint256,uint256,bytes)'
+              ](to.address, ZeroAddress, fromId, toId, toUtf8Bytes('CancelBooking')),
+          ).changeTokenBalance(token, to, -3);
+
+          // check booking data
+          for (let i = fromId; i <= toId; i++) {
+            expect(await token.bookingIds(i)).deep.equal(0);
+          }
+
+          expect((await token.bookings(bookingId)).checkIn).deep.equal(0);
+          expect((await token.bookings(bookingId)).checkOut).deep.equal(0);
+          expect((await token.bookings(bookingId)).data).deep.equal('0x');
+        });
+      });
+
+      describe('revert cases', () => {
+        it('revert if bookingIds from check-in and check-out dont match', async () => {
+          const { token, host, otherAccounts } = await loadFixture(deployNiteTokenFixture);
+
+          const to = otherAccounts[0];
+          const fromId = firstTokenId;
+          const toId = fromId + 2n;
+          const data = '0x42';
+
+          // host transfer 4 nites
+          let tx = await token
+            .connect(host)
+            [
+              'safeBulkTransferFrom(address,address,uint256,uint256,bytes)'
+            ](host.address, to.address, fromId, toId, data);
+
+          await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
+
+          // host unpauses transferring
+          await token.connect(host).unpause();
+
+          // check new booking data
+          let bookingId = 1;
+          for (let i = fromId; i <= toId; i++) {
+            expect(await token.bookingIds(i)).deep.equal(bookingId);
+          }
+          expect((await token.bookings(bookingId)).checkIn).deep.equal(fromId);
+          expect((await token.bookings(bookingId)).checkOut).deep.equal(toId);
+
+          // host transfer a nite
+          tx = await token
+            .connect(host)
+            ['safeTransferFrom(address,address,uint256,bytes)'](host.address, to.address, toId + 5n, data);
+
+          await expect(tx).changeTokenBalances(token, [host, to], [0, 1]);
+
+          // check new booking data
+          bookingId = 2;
+          expect(await token.bookingIds(toId + 5n)).deep.equal(bookingId);
+
+          expect((await token.bookings(bookingId)).checkIn).deep.equal(toId + 5n);
+          expect((await token.bookings(bookingId)).checkOut).deep.equal(toId + 5n);
+          expect((await token.bookings(bookingId)).data).deep.equal('0x42');
+
+          await expect(
+            token
+              .connect(to)
+              ['safeBulkTransferFrom(address,address,uint256,uint256)'](to, ZeroAddress, fromId, toId + 5n),
+          ).revertedWithCustomError(token, 'MismatchedBookingIds');
+        });
+
+        it('revert if toId is not checkoutTokenId', async () => {
+          const { token, host, otherAccounts } = await loadFixture(deployNiteTokenFixture);
+
+          const to = otherAccounts[0];
+          const fromId = firstTokenId;
+          const toId = fromId + 2n;
+          const data = '0x42';
+
+          // host transfer 4 nites
+          const tx = await token
+            .connect(host)
+            [
+              'safeBulkTransferFrom(address,address,uint256,uint256,bytes)'
+            ](host.address, to.address, fromId, toId, data);
+
+          await expect(tx).changeTokenBalances(token, [host, to], [0, 3]);
+
+          // host unpauses transferring
+          await token.connect(host).unpause();
+
+          // check new booking data
+          const bookingId = 1;
+          for (let i = fromId; i <= toId; i++) {
+            expect(await token.bookingIds(i)).deep.equal(bookingId);
+          }
+          expect((await token.bookings(bookingId)).checkIn).deep.equal(fromId);
+          expect((await token.bookings(bookingId)).checkOut).deep.equal(toId);
+
+          await expect(
+            token
+              .connect(to)
+              ['safeBulkTransferFrom(address,address,uint256,uint256)'](to, ZeroAddress, fromId, fromId + 1n),
+          ).revertedWithCustomError(token, 'InvalidCheckoutTokenId');
+        });
       });
     });
   });

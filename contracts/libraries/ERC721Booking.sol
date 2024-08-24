@@ -61,8 +61,13 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
     }
 
     function _deleteBooking(uint256 fromId, uint256 toId) internal virtual {
-        if (bookingIds[fromId] != bookingIds[toId]) {
+        uint256 bookingId = bookingIds[fromId];
+        if (bookingId != bookingIds[toId]) {
             revert MismatchedBookingIds();
+        }
+
+        if (bookings[bookingId].checkOut != toId) {
+            revert InvalidCheckoutTokenId();
         }
 
         uint256 tokenId = fromId;
@@ -73,7 +78,7 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
             }
         }
 
-        delete bookings[bookingIds[fromId]];
+        delete bookings[bookingId];
     }
 
     /*============================================================
@@ -317,4 +322,5 @@ abstract contract ERC721Booking is Context, ERC165, IERC721, IERC721Metadata, Re
     error UnsafeRecipient();
     error InvalidTokenId();
     error MismatchedBookingIds();
+    error InvalidCheckoutTokenId();
 }
