@@ -90,7 +90,7 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
 
     /**
      * @notice Lazy mint a credit voucher token
-     * @dev    Caller must be OPERATOR
+     * @dev    Caller can be ANYONE
      * @param _to The new voucher owner
      * @param _deadline The deadline timestamp by which the call must be mined for the approve to work
      * @param _signature The signature provided by token owner
