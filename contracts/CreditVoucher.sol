@@ -23,6 +23,7 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
 
     address public operator;
     uint256 public validityDuration;
+    string public baseTokenURI;
 
     mapping(uint256 => Voucher) public vouchers;
 
@@ -31,13 +32,15 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
 
     constructor(
         address _operator,
-        address _usdc
+        address _usdc,
+        string memory _uri
     ) ERC721("CreditVoucher", "CV") EIP712("TRVLCreditVoucher", "1") Ownable(_msgSender()) {
         if (_operator == address(0) || _usdc == address(0)) {
             revert ZeroAddress();
         }
         operator = _operator;
         USDC = _usdc;
+        baseTokenURI = _uri;
 
         // Token transfers are disabled by default, except for minting/burning
         _pause();
@@ -52,6 +55,10 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
         return super._update(to, tokenId, auth);
     }
 
+    function _baseURI() internal view override returns (string memory) {
+        return baseTokenURI;
+    }
+
     /**
      * @notice Set operator address
      * @dev    Caller must be CONTRACT OWNER
@@ -60,6 +67,20 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
     function setOperator(address _addr) external onlyOwner {
         operator = _addr;
         emit NewOperator(_addr);
+    }
+
+    /**
+     * @notice Set base token URI
+     * @dev    Caller must be CONTRACT OWNER or OPERATOR
+     * @param _uri Th new token base URI
+     */
+    function setBaseTokenURI(string calldata _uri) external {
+        address msgSender = _msgSender();
+        if (msgSender != owner() && msgSender != operator) {
+            revert Unauthorized();
+        }
+        baseTokenURI = _uri;
+        emit NewBaseTokenURI(_uri);
     }
 
     /**

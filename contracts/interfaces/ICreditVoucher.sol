@@ -17,12 +17,14 @@ interface ICreditVoucher {
     function redeem(uint256 _tokenId) external;
 
     event NewOperator(address indexed newOperator);
+    event NewBaseTokenURI(string uri);
     event NewValidityDuration(uint256 duration);
     event Minted(address indexed owner, uint256 indexed tokenId, uint256 creditValue);
     event Redeemed(address indexed owner, uint256 indexed tokenId);
 
     error ZeroAddress();
     error OnlyOperator();
+    error Unauthorized();
     error NotVoucherOwner();
     error InvalidMsgSender();
     error MintExpired();
