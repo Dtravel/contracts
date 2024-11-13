@@ -4,16 +4,22 @@ pragma solidity 0.8.26;
 interface ICreditVoucher {
     struct Voucher {
         uint256 creditValue;
+        uint256 validityDuration;
         uint256 createdAt;
         uint256 redeemedAt;
         bool redeemed;
     }
 
     function setOperator(address _addr) external;
-    function setValidityDuration(uint256 _duration) external;
     function pause() external;
     function unpause() external;
-    function mint(address _to, uint256 _creditValue, uint256 _deadline, bytes calldata _signature) external;
+    function mint(
+        address _to,
+        uint256 _creditValue,
+        uint256 _validityDuration,
+        uint256 _deadline,
+        bytes calldata _signature
+    ) external;
     function redeem(uint256 _tokenId) external;
 
     event NewOperator(address indexed newOperator);
@@ -28,6 +34,7 @@ interface ICreditVoucher {
     error NotVoucherOwner();
     error InvalidMsgSender();
     error MintExpired();
+    error InsufficientUSDCReserve();
     error InvalidMintSignature();
     error VoucherExpired();
     error VoucherRedeemed();

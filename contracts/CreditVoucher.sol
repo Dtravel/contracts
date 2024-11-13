@@ -16,13 +16,14 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
     using SignatureChecker for address;
 
     bytes32 public constant VERSION = keccak256("CREDIT_VOUCHER_V1");
-    // keccak256("Mint(address to,uint256 creditValue,uint256 nonce,uint256 deadline)")
-    bytes32 private constant MINT_TYPEHASH = 0xd10efb11fc8417faf3162be9fb4bccfb2fe444b18748b7f8b5693464fbaa56bb;
+    // keccak256("Mint(address to,uint256 creditValue,uint256 validityDuration,uint256 nonce,uint256 deadline)")
+    bytes32 private constant MINT_TYPEHASH = 0x8273ad6602a685a4f5d7ecbc8bd3d12143e571c328549ec6589a11d3524466ce;
 
-    address public immutable USDC;
+    IERC20 public immutable USDC;
 
     address public operator;
     uint256 public validityDuration;
+    uint256 public totalCredits;
     string public baseTokenURI;
 
     mapping(uint256 => Voucher) public vouchers;
@@ -39,7 +40,7 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
             revert ZeroAddress();
         }
         operator = _operator;
-        USDC = _usdc;
+        USDC = IERC20(_usdc);
         baseTokenURI = _uri;
 
         // Token transfers are disabled by default, except for minting/burning
@@ -84,16 +85,6 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
     }
 
     /**
-        @notice Set validity duration
-        @dev Caller must be CONTRACT OWNER
-        @param _duration the new validity duration
-    */
-    function setValidityDuration(uint256 _duration) external onlyOwner {
-        validityDuration = _duration;
-        emit NewValidityDuration(_duration);
-    }
-
-    /**
      * @notice Disable token transfer
      * @dev Caller must be CONTRACT OWNER
      */
@@ -113,12 +104,23 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
      * @notice Lazy mint a credit voucher token
      * @dev    Caller can be ANYONE
      * @param _to The new voucher owner
+     * @param _validityDuration The validity duration to redeem the voucher
      * @param _deadline The deadline timestamp by which the call must be mined for the approve to work
      * @param _signature The signature provided by token owner
      */
-    function mint(address _to, uint256 _creditValue, uint256 _deadline, bytes calldata _signature) public {
+    function mint(
+        address _to,
+        uint256 _creditValue,
+        uint256 _validityDuration,
+        uint256 _deadline,
+        bytes calldata _signature
+    ) public {
         if (_msgSender() != _to) {
             revert InvalidMsgSender();
+        }
+
+        if (totalCredits + _creditValue > USDC.balanceOf(address(this))) {
+            revert InsufficientUSDCReserve();
         }
 
         bytes32 structHash = keccak256(abi.encode(MINT_TYPEHASH, _to, _creditValue, sigNonces[_to]++, _deadline));
@@ -127,7 +129,9 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
 
         uint256 tokenId = totalSupply() + 1;
         _safeMint(_to, tokenId);
-        vouchers[tokenId] = Voucher(_creditValue, block.timestamp, 0, false);
+        vouchers[tokenId] = Voucher(_creditValue, _validityDuration, block.timestamp, 0, false);
+
+        totalCredits += _creditValue;
 
         emit Minted(_to, tokenId, _creditValue);
     }
@@ -144,7 +148,7 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
         }
         Voucher storage voucher = vouchers[_tokenId];
         uint256 current = block.timestamp;
-        if (current > voucher.createdAt + validityDuration) {
+        if (current > voucher.createdAt + voucher.validityDuration) {
             revert VoucherExpired();
         }
 
@@ -154,11 +158,21 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
 
         voucher.redeemedAt = current;
         voucher.redeemed = true;
+        totalCredits -= voucher.creditValue;
         _burn(_tokenId);
 
         IERC20(USDC).transfer(msgSender, voucher.creditValue);
 
         emit Redeemed(msgSender, _tokenId);
+    }
+
+    /**
+     * @notice Burn a voucher
+     * @dev    Caller can be ANYONE
+     * @param _tokenId The tokenId to be redeemed
+     */
+    function burn(uint256 _tokenId) public {
+        _burn(_tokenId);
     }
 
     function _validateRecoveredAddress(
