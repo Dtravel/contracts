@@ -146,14 +146,16 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
         if (ownerOf(_tokenId) != msgSender) {
             revert NotVoucherOwner();
         }
+
         Voucher storage voucher = vouchers[_tokenId];
         uint256 current = block.timestamp;
-        if (current > voucher.createdAt + voucher.validityDuration) {
-            revert VoucherExpired();
-        }
 
         if (voucher.redeemed) {
             revert VoucherRedeemed();
+        }
+
+        if (current > voucher.createdAt + voucher.validityDuration) {
+            revert VoucherExpired();
         }
 
         voucher.redeemedAt = current;
@@ -172,6 +174,23 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
      * @param _tokenId The tokenId to be redeemed
      */
     function burn(uint256 _tokenId) public {
+        address msgSender = _msgSender();
+        if (ownerOf(_tokenId) != msgSender) {
+            revert NotVoucherOwner();
+        }
+
+        Voucher storage voucher = vouchers[_tokenId];
+        uint256 current = block.timestamp;
+
+        if (voucher.redeemed) {
+            revert VoucherRedeemed();
+        }
+
+        if (current <= voucher.createdAt + voucher.validityDuration) {
+            revert VoucherUnexpiredYet();
+        }
+
+        totalCredits -= voucher.creditValue;
         _burn(_tokenId);
     }
 

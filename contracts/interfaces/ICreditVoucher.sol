@@ -37,6 +37,7 @@ interface ICreditVoucher {
     error InsufficientUSDCReserve();
     error InvalidMintSignature();
     error VoucherExpired();
+    error VoucherUnexpiredYet();
     error VoucherRedeemed();
     error TransferWhilePaused();
 }
