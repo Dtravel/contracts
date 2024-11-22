@@ -224,7 +224,7 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
         uint256 tokenId;
         for (uint256 i = 0; i < _size; i++) {
             tokenId = _cursor + i;
-            voucher = vouchers[_cursor + i];
+            voucher = vouchers[tokenId];
 
             // skip burning if the voucher has already been redeemed.
             if (voucher.redeemed) {
