@@ -21,6 +21,8 @@ interface ICreditVoucher {
         bytes calldata _signature
     ) external;
     function redeem(uint256 _tokenId) external;
+    function burn(uint256 _tokenId) external;
+    function batchBurn(uint256 _cursor, uint256 _size) external returns (uint256 _nextBurnCursor);
 
     event NewOperator(address indexed newOperator);
     event NewBaseTokenURI(string uri);

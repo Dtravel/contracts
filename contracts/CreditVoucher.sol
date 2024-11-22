@@ -20,11 +20,19 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
     bytes32 private constant MINT_TYPEHASH = 0x8273ad6602a685a4f5d7ecbc8bd3d12143e571c328549ec6589a11d3524466ce;
 
     IERC20 public immutable USDC;
+    // The maximum number of tokens to be burned starting from burnCursor.
+    uint256 public immutable MAX_BURN_AMOUNT;
 
+    // Contract owner has the authority to pause and unpause the contract and can assign a new operator.
+    // Operator, on the other hand, can sign lazy minting messages, allowing users to mint vouchers.
     address public operator;
-    uint256 public validityDuration;
     uint256 public totalCredits;
     string public baseTokenURI;
+
+    // The current index of the token/voucher to be burned, if expired, during new minting
+    uint256 public burnCursor;
+
+    uint256 public tokenCounter;
 
     mapping(uint256 => Voucher) public vouchers;
 
@@ -34,6 +42,7 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
     constructor(
         address _operator,
         address _usdc,
+        uint256 _maxBurnAmount,
         string memory _uri
     ) ERC721("CreditVoucher", "CV") EIP712("TRVLCreditVoucher", "1") Ownable(_msgSender()) {
         if (_operator == address(0) || _usdc == address(0)) {
@@ -41,6 +50,7 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
         }
         operator = _operator;
         USDC = IERC20(_usdc);
+        MAX_BURN_AMOUNT = _maxBurnAmount;
         baseTokenURI = _uri;
 
         // Token transfers are disabled by default, except for minting/burning
@@ -119,6 +129,14 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
             revert InvalidMsgSender();
         }
 
+        // Automatically burn expired vouchers to free up USDC reserves for new minting.
+        uint256 newCursor = batchBurn(burnCursor, MAX_BURN_AMOUNT);
+
+        // Skip updating burn cursor if it hasnt changed.
+        if (burnCursor < newCursor) {
+            burnCursor = newCursor;
+        }
+
         if (totalCredits + _creditValue > USDC.balanceOf(address(this))) {
             revert InsufficientUSDCReserve();
         }
@@ -127,7 +145,7 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
         bytes32 digest = _hashTypedDataV4(structHash);
         _validateRecoveredAddress(digest, operator, _deadline, _signature);
 
-        uint256 tokenId = totalSupply() + 1;
+        uint256 tokenId = tokenCounter++;
         _safeMint(_to, tokenId);
         vouchers[tokenId] = Voucher(_creditValue, _validityDuration, block.timestamp, 0, false);
 
@@ -169,29 +187,55 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
     }
 
     /**
-     * @notice Burn a voucher
+     * @notice Burn an expired voucher
      * @dev    Caller can be ANYONE
-     * @param _tokenId The tokenId to be redeemed
+     * @param _tokenId The tokenId to be burned
      */
-    function burn(uint256 _tokenId) public {
-        address msgSender = _msgSender();
-        if (ownerOf(_tokenId) != msgSender) {
-            revert NotVoucherOwner();
-        }
-
+    function burn(uint256 _tokenId) external {
         Voucher storage voucher = vouchers[_tokenId];
-        uint256 current = block.timestamp;
 
         if (voucher.redeemed) {
             revert VoucherRedeemed();
         }
 
-        if (current <= voucher.createdAt + voucher.validityDuration) {
+        if (block.timestamp <= voucher.createdAt + voucher.validityDuration) {
             revert VoucherUnexpiredYet();
         }
 
         totalCredits -= voucher.creditValue;
         _burn(_tokenId);
+    }
+
+    /**
+     * @notice Burn a batch of expired vouchers
+     * @dev    Caller can be ANYONE
+     * @param _cursor Current token id to be burned
+     * @param _size The number of tokens to be burned starting from _cursor
+     * @return _nextBurnCursor The next token id to be burned in the next batch
+     */
+    function batchBurn(uint256 _cursor, uint256 _size) public returns (uint256 _nextBurnCursor) {
+        if (_size > tokenCounter - _cursor) {
+            _size = tokenCounter - _cursor;
+        }
+
+        _nextBurnCursor = _cursor;
+
+        Voucher storage voucher;
+        uint256 tokenId;
+        for (uint256 i = 0; i < _size; i++) {
+            tokenId = _cursor + i;
+            voucher = vouchers[_cursor + i];
+
+            // skip burning if the voucher has already been redeemed.
+            if (voucher.redeemed) {
+                _nextBurnCursor = tokenId + 1;
+            } else if (block.timestamp > voucher.createdAt + voucher.validityDuration) {
+                // if vouchers is expired, burn it and update nextBurnCursor to the next tokenId.
+                _nextBurnCursor = tokenId + 1;
+                totalCredits -= voucher.creditValue;
+                _burn(tokenId);
+            }
+        }
     }
 
     function _validateRecoveredAddress(
