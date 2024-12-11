@@ -7,7 +7,6 @@ interface ICreditVoucher {
         uint256 validityDuration;
         uint256 createdAt;
         uint256 redeemedAt;
-        bool redeemed;
     }
 
     function setOperator(address _addr) external;

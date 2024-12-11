@@ -147,7 +147,7 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
 
         uint256 tokenId = tokenCounter++;
         _safeMint(_to, tokenId);
-        vouchers[tokenId] = Voucher(_creditValue, _validityDuration, block.timestamp, 0, false);
+        vouchers[tokenId] = Voucher(_creditValue, _validityDuration, block.timestamp, 0);
 
         totalCredits += _creditValue;
 
@@ -168,7 +168,7 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
         Voucher storage voucher = vouchers[_tokenId];
         uint256 current = block.timestamp;
 
-        if (voucher.redeemed) {
+        if (voucher.redeemedAt > 0) {
             revert VoucherRedeemed();
         }
 
@@ -177,7 +177,6 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
         }
 
         voucher.redeemedAt = current;
-        voucher.redeemed = true;
         totalCredits -= voucher.creditValue;
         _burn(_tokenId);
 
@@ -194,7 +193,7 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
     function burn(uint256 _tokenId) external {
         Voucher storage voucher = vouchers[_tokenId];
 
-        if (voucher.redeemed) {
+        if (voucher.redeemedAt > 0) {
             revert VoucherRedeemed();
         }
 
@@ -227,7 +226,7 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
             voucher = vouchers[tokenId];
 
             // skip burning if the voucher has already been redeemed.
-            if (voucher.redeemed) {
+            if (voucher.redeemedAt > 0) {
                 _nextBurnCursor = tokenId + 1;
             } else if (block.timestamp > voucher.createdAt + voucher.validityDuration) {
                 // if vouchers is expired, burn it and update nextBurnCursor to the next tokenId.
