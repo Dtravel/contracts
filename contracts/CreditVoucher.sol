@@ -178,7 +178,6 @@ contract CreditVoucher is ICreditVoucher, ERC721Enumerable, Pausable, EIP712, Ow
 
         voucher.redeemedAt = current;
         totalCredits -= voucher.creditValue;
-        _burn(_tokenId);
 
         IERC20(USDC).transfer(msgSender, voucher.creditValue);
 
